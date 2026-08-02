@@ -1,7 +1,7 @@
 {
   "name": "pc-build-companion",
   "private": true,
-  "packageManager": "pnpm@9.0.0",
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
@@ -12,8 +12,8 @@
     "db:studio": "pnpm --filter @pcb/db studio"
   },
   "devDependencies": {
+    "prettier": "^3.3.0",
     "turbo": "^2.0.0",
-    "typescript": "^5.5.0",
-    "prettier": "^3.3.0"
+    "typescript": "^5.5.0"
   }
 }
