@@ -1,0 +1,125 @@
+// Starter schema — the Phase 2 foundation.
+// Canonical product vs retail SKU split is the key design decision:
+// specs attach to variants (each AIB card has its own length!),
+// prices attach to (variant x retailer x region).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Region {
+  DE
+  US
+}
+
+model Motherboard {
+  id           String        @id @default(cuid())
+  brand        String
+  model        String
+  socket       String // e.g. "AM5", "LGA1851"
+  chipset      String
+  formFactor   String // ATX, mATX, mITX
+  memoryType   String // DDR4 / DDR5
+  m2Slots      Json // [{ gen, lanes, sharesWithSataPorts }]
+  pcieSlots    Json // [{ gen, lanes, physicalSize }]
+  dimensions   Json? // { widthMm, depthMm }
+  specSource   String // URL of the source page
+  specDate     DateTime      @default(now())
+  biosSupport  BiosSupport[]
+
+  @@unique([brand, model])
+}
+
+model Cpu {
+  id          String        @id @default(cuid())
+  brand       String
+  model       String
+  socket      String
+  tdpW        Int
+  peakPowerW  Int // realistic peak, not box TDP
+  specSource  String
+  specDate    DateTime      @default(now())
+  biosSupport BiosSupport[]
+
+  @@unique([brand, model])
+}
+
+model BiosSupport {
+  motherboardId String
+  cpuId         String
+  minBiosVer    String
+  motherboard   Motherboard @relation(fields: [motherboardId], references: [id])
+  cpu           Cpu         @relation(fields: [cpuId], references: [id])
+
+  @@id([motherboardId, cpuId])
+}
+
+model GpuChip {
+  id       String       @id @default(cuid())
+  name     String       @unique // e.g. "RTX 4070 SUPER"
+  tbpW     Int
+  pcieGen  Int
+  perfTier Json? // { g1080: score, g1440: score, g2160: score } — Phase 6
+  variants GpuVariant[]
+}
+
+model GpuVariant {
+  id              String          @id @default(cuid())
+  chipId          String
+  brand           String // ASUS, MSI, ...
+  model           String // "Dual OC", "Ventus 2X", ...
+  lengthMm        Int
+  heightMm        Int?
+  slotThickness   Float // 2.5, 3.0 ...
+  powerConnectors String // "1x 12V-2x6", "2x 8-pin"
+  ean             String?         @unique
+  specSource      String
+  specDate        DateTime        @default(now())
+  chip            GpuChip         @relation(fields: [chipId], references: [id])
+  priceSnapshots  PriceSnapshot[]
+
+  @@unique([brand, model])
+}
+
+model Case {
+  id              String   @id @default(cuid())
+  brand           String
+  model           String
+  formFactors     Json // ["ATX", "mATX", "mITX"]
+  gpuMaxLengthMm  Int
+  coolerMaxHeightMm Int
+  radiatorSupport Json // [{ sizeMm, position, maxThicknessMm }]
+  psuMaxLengthMm  Int?
+  specSource      String
+  specDate        DateTime @default(now())
+
+  @@unique([brand, model])
+}
+
+model Retailer {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  region         Region
+  affiliateTag   String?
+  priceSnapshots PriceSnapshot[]
+}
+
+model PriceSnapshot {
+  id           String     @id @default(cuid())
+  gpuVariantId String // generalize to a polymorphic productVariantId in Phase 2
+  retailerId   String
+  region       Region
+  currency     String // EUR, USD
+  priceCents   Int
+  inStock      Boolean
+  capturedAt   DateTime   @default(now())
+  gpuVariant   GpuVariant @relation(fields: [gpuVariantId], references: [id])
+  retailer     Retailer   @relation(fields: [retailerId], references: [id])
+
+  @@index([gpuVariantId, region, capturedAt])
+}
